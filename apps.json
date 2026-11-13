@@ -1,0 +1,9 @@
+{
+  "title": "Application health",
+  "applications": [
+    {"id": "demo-api", "name": "Demo API", "url": "https://jsonplaceholder.typicode.com/todos/1", "expected_status": 200, "timeout_seconds": 15},
+    {"id": "healthy-service", "name": "Healthy service", "url": "https://httpbin.org/status/200", "expected_status": 200, "timeout_seconds": 15},
+    {"id": "slow-service", "name": "Slow service", "url": "https://httpbin.org/delay/1", "expected_status": 200, "timeout_seconds": 15},
+    {"id": "outage-demo", "name": "Outage demo", "url": "https://httpbin.org/status/503", "expected_status": 200, "timeout_seconds": 15}
+  ]
+}

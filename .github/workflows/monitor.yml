@@ -1,0 +1,83 @@
+name: Monitor and publish
+run-name: Application health · ${{ github.run_number }}
+
+on:
+  workflow_dispatch:
+  # Uncomment to enable scheduled checks (UTC; schedules may be delayed).
+  # schedule:
+  #   - cron: '17 * * * *'
+
+permissions:
+  contents: read
+
+# Keep a complete run together so an older run cannot overwrite newer results.
+concurrency:
+  group: monitoring-pages
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    name: Read application config
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      matrix: ${{ steps.config.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: config
+        run: echo "matrix=$(python3 scripts/monitor.py matrix)" >> "$GITHUB_OUTPUT"
+
+  check:
+    name: Check ${{ matrix.id }}
+    needs: prepare
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.prepare.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Probe application
+        env:
+          APP_ID: ${{ matrix.id }}
+        run: python3 scripts/monitor.py check --app "$APP_ID"
+      - name: Upload check result
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: result-${{ matrix.id }}
+          path: results/*.json
+          if-no-files-found: warn
+          retention-days: 1
+
+  publish:
+    name: Publish latest dashboard
+    needs: [prepare, check]
+    if: ${{ always() && !cancelled() && needs.prepare.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download available results
+        uses: actions/download-artifact@v4
+        with:
+          pattern: result-*
+          path: results
+          merge-multiple: true
+      - name: Build dashboard (missing checks become unknown)
+        run: python3 scripts/monitor.py build
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+          retention-days: 1
+      - name: Deploy GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5
