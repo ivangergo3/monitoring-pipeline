@@ -39,6 +39,8 @@ Monitoring runs manually or when the config, checker, template, or monitoring wo
 
 An unhealthy app is a successful monitoring observation, so it does **not** make the workflow fail. Runner, script, and deployment failures still fail their jobs. Cancelled runs leave the previous dashboard published. Config validation failure prevents deployment rather than publishing an invalid app list.
 
+Reruns are supported: each Pages bundle includes `github.run_attempt` in its name, and deployment explicitly selects that attempt's bundle. Per-app result uploads use `overwrite: true` so a rerun replaces that app's artifact. Stable per-app names also let a publishing-only rerun reuse the existing check results and partial check reruns retain results from other apps. Artifacts must still be available within their one-day retention period; start a fresh workflow run if they have expired.
+
 ## Add an application
 
 Edit `apps.json`:

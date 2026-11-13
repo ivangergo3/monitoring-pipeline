@@ -53,6 +53,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: result-${{ matrix.id }}
+          # Replace this app's result on rerun; keep other apps' results so a
+          # partial rerun can still publish the complete application list.
+          overwrite: true
           path: results/*.json
           if-no-files-found: warn
           retention-days: 1
@@ -91,8 +94,12 @@ jobs:
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
+          name: github-pages-${{ github.run_attempt }}
           path: dist
           retention-days: 1
       - name: Deploy GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v5
+        with:
+          # Match only this attempt, even when older Pages bundles still exist.
+          artifact_name: github-pages-${{ github.run_attempt }}
