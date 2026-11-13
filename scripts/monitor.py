@@ -2,11 +2,11 @@
 
 import argparse
 from datetime import datetime, timezone
-import html
 import json
 import os
 from pathlib import Path
 import re
+import shutil
 import socket
 import time
 import urllib.error
@@ -86,29 +86,9 @@ def build(config, results_dir, output_dir):
     output = Path(output_dir)
     output.mkdir(parents=True, exist_ok=True)
     (output / "status.json").write_text(json.dumps(report, indent=2) + "\n")
-    cards = []
-    esc = lambda value: html.escape(str(value), quote=True)
-    for app in apps:
-        status = app["status"]
-        latency = f"{app['response_ms']:,} ms" if app.get("response_ms") is not None else "—"
-        code = f"HTTP {app['http_status']}" if app.get("http_status") is not None else "No response"
-        cards.append(f'''<article class="card {status}">
-          <div class="card-top"><span class="service-icon" aria-hidden="true">↗</span><span class="badge"><i></i>{status.title()}</span></div>
-          <h2>{esc(app['name'])}</h2><a class="endpoint" href="{esc(app['url'])}">{esc(app['url'])}</a>
-          <div class="metrics"><div><span>RESPONSE TIME</span><strong>{latency}</strong></div><div><span>RESPONSE</span><strong>{code}</strong></div></div>
-          <p class="detail">{esc(app.get('error') or 'Responded with the expected status code.')}</p>
-          <div class="checked">Checked <time>{esc(app.get('checked_at') or 'unavailable')}</time></div></article>''')
-    healthy = sum(app["status"] == "healthy" for app in apps)
-    unhealthy = sum(app["status"] == "unhealthy" for app in apps)
-    unknown = len(apps) - healthy - unhealthy
-    overall = "All systems operational" if healthy == len(apps) else ("Some services are unavailable" if unhealthy else "Some checks are incomplete")
-    template = (ROOT / "site/index.html").read_text()
-    values = {"TITLE": esc(report["title"]), "CARDS": "\n".join(cards), "OVERALL": overall,
-              "HEALTHY": str(healthy), "UNHEALTHY": str(unhealthy), "UNKNOWN": str(unknown),
-              "TOTAL": str(len(apps)), "GENERATED": esc(report["generated_at"]),
-              "RUN_LINK": f'<a href="{esc(run_url)}">View workflow run ↗</a>' if run_url else '<span>Local preview</span>'}
-    template = re.sub(r"\{\{([A-Z_]+)\}\}", lambda match: values[match[1]], template)
-    (output / "index.html").write_text(template)
+    # Pages deploys a complete site. Only status.json is generated; the shell is
+    # copied byte-for-byte and is independent of the current apps and results.
+    shutil.copytree(ROOT / "site", output, dirs_exist_ok=True)
     (output / ".nojekyll").touch()
     return report
 

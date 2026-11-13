@@ -85,17 +85,22 @@ class MonitorTests(unittest.TestCase):
                 report = monitor.build(config, root, root / "out")
                 self.assertEqual(report["applications"][0]["status"], "unknown")
 
-    def test_html_escaping_and_json_output(self):
+    def test_shell_is_static_and_only_json_changes(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             app = self.app(name='<script>alert("x")</script>')
             (root / "test.json").write_text(json.dumps(monitor.check(app)))
             report = monitor.build({"applications": [app]}, root, root / "out")
             page = (root / "out/index.html").read_text()
-            self.assertNotIn("<script>", page)
-            self.assertIn("&lt;script&gt;", page)
-            self.assertNotIn("{{", page)
+            self.assertNotIn(app["name"], page)
+            self.assertEqual(page, (monitor.ROOT / "site/index.html").read_text())
+            self.assertEqual((root / "out/dashboard.mjs").read_bytes(), (monitor.ROOT / "site/dashboard.mjs").read_bytes())
             self.assertEqual(json.loads((root / "out/status.json").read_text()), report)
+            config = {"title": "Changed title", "applications": [self.app(name="Changed app")]}
+            changed = monitor.build(config, root, root / "out")
+            self.assertNotEqual(changed, report)
+            self.assertEqual((root / "out/index.html").read_text(), page)
+            self.assertEqual(json.loads((root / "out/status.json").read_text()), changed)
 
     def test_invalid_config(self):
         good = {"applications": [self.app()]}

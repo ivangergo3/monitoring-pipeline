@@ -15,7 +15,7 @@ flowchart LR
     C --> F[Collect JSON results]
     D --> F
     E --> F
-    F --> G[Generate HTML + status.json]
+    F --> G[Generate status.json + copy static dashboard]
     G --> H[Deploy GitHub Pages]
 ```
 
@@ -23,9 +23,13 @@ flowchart LR
 - **Independent checks:** `fail-fast: false` keeps other checks running if a runner fails.
 - **Failure-aware reporting:** HTTP errors and timeouts become unhealthy results; missing runner results become unknown. The publishing job runs even if a check job fails.
 - **Latest snapshot:** no application history or database. GitHub retains workflow logs; intermediate artifacts expire after one day.
-- **Static dashboard:** responsive HTML, no JavaScript, no external assets. The page refreshes every 60 seconds to pick up the latest published snapshot. This does not trigger new checks.
+- **Reusable dashboard:** HTML and a small dependency-free JavaScript module stay identical between monitoring runs. The browser fetches only `status.json` every 60 seconds without reloading the page. Fetches bypass browser caching and use a timestamp query to avoid reusing an older cached JSON response. Failed refreshes retain the last loaded snapshot with a visible warning. JavaScript is required for the visual dashboard; the raw JSON remains directly accessible.
 - **Minimal permissions:** check jobs can read the repo; only the publishing job can deploy Pages.
-- **No dependencies:** Python 3.10+ standard library; no API keys or paid infrastructure.
+- **No installed dependencies:** Python 3.10+ standard library and browser-native JavaScript; no API keys or paid infrastructure. Node.js 18+ is used only for frontend tests.
+
+## Publishing efficiency
+
+The publishing job uses sparse checkout to fetch only `apps.json`, `scripts/monitor.py`, and `site/`, with checkout credential persistence disabled. Only `status.json` is generated from each run; the HTML and JavaScript are copied unchanged. **GitHub Pages still requires a complete site artifact on every deployment**: uploading JSON alone would replace the site and remove its dashboard. There is no cache restoration or remote download of the shell. This reduces unnecessary work but does not remove runner scheduling or Pages deployment latency; savings for a small repository may be modest.
 
 ## Run it
 
@@ -68,6 +72,7 @@ The initial config uses [JSONPlaceholder](https://jsonplaceholder.typicode.com/)
 
 ```sh
 python3 -m unittest discover -s tests -v
+node --test tests/dashboard.test.mjs
 python3 scripts/monitor.py matrix
 python3 scripts/monitor.py local
 python3 -m http.server 8000 --directory dist
@@ -75,7 +80,7 @@ python3 -m http.server 8000 --directory dist
 
 Open <http://localhost:8000>. Local checks run sequentially; GitHub runs each app on its own runner. Generated `results/` and `dist/` folders are ignored by Git. To check just one app, use `python3 scripts/monitor.py check --app demo-api`. To render existing results, use `python3 scripts/monitor.py build`.
 
-Tests use a local HTTP server to verify healthy responses, HTTP failures, custom status codes, redirects, timeouts, connection errors, missing or corrupt results, HTML escaping, and config validation. They do not depend on external demo services.
+Tests use a local HTTP server to verify healthy responses, HTTP failures, custom status codes, redirects, timeouts, connection errors, missing or corrupt results, an unchanged dashboard shell across result updates, and config validation. Frontend tests cover URL validation, invalid snapshots, refresh failures, and recovery; dynamic text is rendered with DOM text nodes rather than HTML interpolation. They do not depend on external demo services.
 
 ## Fork and deploy
 
