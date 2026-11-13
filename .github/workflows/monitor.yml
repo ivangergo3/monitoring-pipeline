@@ -3,6 +3,13 @@ run-name: Application health · ${{ github.run_number }}
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - apps.json
+      - scripts/**
+      - site/**
+      - .github/workflows/monitor.yml
   # Uncomment to enable scheduled checks (UTC; schedules may be delayed).
   # schedule:
   #   - cron: '17 * * * *'

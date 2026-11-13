@@ -31,7 +31,7 @@ flowchart LR
 
 Open **Actions → Monitor and publish → Run workflow**, and select `main`. When deployment completes, the dashboard and [`status.json`](https://ivangergo3.github.io/monitoring-pipeline/status.json) update at the same stable URL. Do not run monitoring from an untrusted branch.
 
-Monitoring is manual only. In `.github/workflows/monitor.yml`, uncomment the `schedule` block to enable hourly checks at minute 17 UTC. GitHub schedules can be delayed. Whole-run concurrency prevents overlapping deployments; GitHub can replace pending queued runs with a newer one.
+Monitoring runs manually or when the config, checker, template, or monitoring workflow changes on `main`. In `.github/workflows/monitor.yml`, uncomment the `schedule` block to enable hourly checks at minute 17 UTC. GitHub schedules can be delayed. Whole-run concurrency prevents overlapping deployments; GitHub can replace pending queued runs with a newer one.
 
 An unhealthy app is a successful monitoring observation, so it does **not** make the workflow fail. Runner, script, and deployment failures still fail their jobs. Cancelled runs leave the previous dashboard published. Config validation failure prevents deployment rather than publishing an invalid app list.
 
