@@ -25,11 +25,11 @@ flowchart LR
 - **Latest snapshot:** no application history or database. GitHub retains workflow logs; intermediate artifacts expire after one day.
 - **Reusable dashboard:** HTML and a small dependency-free JavaScript module stay identical between monitoring runs. The browser fetches only `status.json` every 60 seconds without reloading the page. Fetches bypass browser caching and use a timestamp query to avoid reusing an older cached JSON response. Failed refreshes retain the last loaded snapshot with a visible warning. JavaScript is required for the visual dashboard; the raw JSON remains directly accessible.
 - **Minimal permissions:** check jobs can read the repo; only the publishing job can deploy Pages.
-- **No installed dependencies:** Python 3.10+ standard library and browser-native JavaScript; no API keys or paid infrastructure. Node.js 18+ is used only for frontend tests.
+- **Bash monitoring:** Bash 3.2+, `curl`, and `jq` 1.6+; no API keys or paid infrastructure. These tools are preinstalled on the hosted Ubuntu runners. Node.js 18+ is used only for frontend tests and the local HTTP test fixture.
 
 ## Publishing efficiency
 
-The publishing job uses sparse checkout to fetch only `apps.json`, `scripts/monitor.py`, and `site/`, with checkout credential persistence disabled. Only `status.json` is generated from each run; the HTML and JavaScript are copied unchanged. **GitHub Pages still requires a complete site artifact on every deployment**: uploading JSON alone would replace the site and remove its dashboard. There is no cache restoration or remote download of the shell. This reduces unnecessary work but does not remove runner scheduling or Pages deployment latency; savings for a small repository may be modest.
+The publishing job uses sparse checkout to fetch only `apps.json`, `scripts/`, and `site/`, with checkout credential persistence disabled. Only `status.json` is generated from each run; the HTML and JavaScript are copied unchanged. **GitHub Pages still requires a complete site artifact on every deployment**: uploading JSON alone would replace the site and remove its dashboard. There is no cache restoration or remote download of the shell. This reduces unnecessary work but does not remove runner scheduling or Pages deployment latency; savings for a small repository may be modest.
 
 ## Run it
 
@@ -62,7 +62,7 @@ Edit `apps.json`:
 
 `id`, `name`, and `url` are required. IDs must be unique lowercase letters, numbers, or hyphens, starting with a letter or number, up to 63 characters. `expected_status` defaults to 200; `timeout_seconds` defaults to 10 and must be greater than zero and at most 60. Up to 256 apps are supported by the matrix; actual parallelism depends on GitHub's runner limits.
 
-The probe sends an HTTP GET, follows redirects, and compares the final response code with the expected code. Response time measures time to response headers, including connection setup and redirects; it does not download the response body. The timeout applies to blocking network operations, not a strict total duration budget. There is one attempt per run, with no retries or response-body validation.
+The probe sends an HTTP GET, follows redirects, and compares the final response code with the expected code. Response time measures the complete HTTP transfer, including connection setup, redirects, and the response body, which is discarded. `timeout_seconds` is a total request budget, enforced by curl across the transfer. Redirects are limited to 10 and restricted to HTTP(S). A timeout after HTTP 200 headers still counts as unhealthy. There is one attempt per run, with no retries or response-body validation.
 
 This is a public showcase: configured URLs and results are public. Add only public, non-sensitive URLs. Future authenticated checks should read credentials from GitHub Secrets and avoid publishing secrets in URLs or errors.
 
@@ -73,16 +73,15 @@ The initial config uses [JSONPlaceholder](https://jsonplaceholder.typicode.com/)
 ## Local development
 
 ```sh
-python3 -m unittest discover -s tests -v
-node --test tests/dashboard.test.mjs
-python3 scripts/monitor.py matrix
-python3 scripts/monitor.py local
-python3 -m http.server 8000 --directory dist
+bash tests/run.sh
+bash scripts/monitor.sh matrix
+bash scripts/monitor.sh local
+# Serve dist/ with any static HTTP server to preview it in a browser.
 ```
 
-Open <http://localhost:8000>. Local checks run sequentially; GitHub runs each app on its own runner. Generated `results/` and `dist/` folders are ignored by Git. To check just one app, use `python3 scripts/monitor.py check --app demo-api`. To render existing results, use `python3 scripts/monitor.py build`.
+Serve the generated `dist/` directory over HTTP (opening the HTML directly as a file does not support JSON fetching). Local checks run sequentially; GitHub runs each app on its own runner. Generated `results/` and `dist/` folders are ignored by Git. To check just one app, use `bash scripts/monitor.sh check --app demo-api`. To render existing results, use `bash scripts/monitor.sh build`.
 
-Tests use a local HTTP server to verify healthy responses, HTTP failures, custom status codes, redirects, timeouts, connection errors, missing or corrupt results, an unchanged dashboard shell across result updates, and config validation. Frontend tests cover URL validation, invalid snapshots, refresh failures, and recovery; dynamic text is rendered with DOM text nodes rather than HTML interpolation. They do not depend on external demo services.
+Bash tests exercise the actual CLI and curl against a temporary local Node.js HTTP fixture. They cover healthy responses, HTTP failures, custom status codes, redirects, header/body timeouts, connection errors, missing or corrupt results, an unchanged dashboard shell across result updates, and config validation. No monitoring code or Bash test assertions require Python. CI also checks shell syntax and runs ShellCheck. Frontend tests cover URL validation, invalid snapshots, refresh failures, and recovery; dynamic text is rendered with DOM text nodes rather than HTML interpolation. They do not depend on external demo services.
 
 ## Fork and deploy
 
